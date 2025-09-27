@@ -15,7 +15,7 @@ local function attemptSave(plr, trees) -- handler for trying to save trees (inca
 		if v.owner.Value == plr then
 			for _, zone in pairs(v.PlantZones:GetChildren()) do
 				local model = zone:FindFirstChildOfClass("Model")
-				if model then
+				if model then -- adds the info about the tree in that iteration
 					table.insert(trees, {
 						name = model.Name,
 						grown = model:FindFirstChild("grown") and model.grown.Value or false,
@@ -36,14 +36,14 @@ local function continueGrowth(growth, tree, maxGrowth, time) -- resumes growth o
 	task.spawn(function() -- I wrapped it in task.spawn() just in case it yeilds (it wont now that I look at it bc its lamba so fuck me ig)
 		time -= time * growth
 		local nv = tree:FindFirstChild("growth")
-		if not nv then
+		if not nv then -- checks for the growth value  creating a new one in case it isnt found
 			nv = Instance.new("NumberValue")
 			nv.Name = "growth"
 			nv.Value = growth
 			nv.Parent = tree
 		end
 
-		local growTween = game:GetService("TweenService"):Create( -- create tween
+		local growTween = game:GetService("TweenService"):Create( -- create tween for the tree to increase in size
 			nv,
 			TweenInfo.new(time, Enum.EasingStyle.Linear),
 			{Value = maxGrowth}
@@ -54,7 +54,7 @@ local function continueGrowth(growth, tree, maxGrowth, time) -- resumes growth o
 		local conn
 		conn = nv.Changed:Connect(function(newVal) -- detect when number value changes from tween so as to not use runservice
 			if not running then return end
-			tree:ScaleTo(newVal)
+			tree:ScaleTo(newVal) -- scales the tree, then positions it to the attachment where it was planted
 			local soilAttachment = tree.Parent.Attachment
 			local baseAttachment = tree.Attachment
 
@@ -62,7 +62,7 @@ local function continueGrowth(growth, tree, maxGrowth, time) -- resumes growth o
 				local soilPos = soilAttachment.WorldPosition
 				local basePos = baseAttachment.WorldPosition
 				local diff = soilPos - basePos
-				local pivot = tree:GetPivot()
+				local pivot = tree:GetPivot() -- cframe math incoming
 				tree:PivotTo(CFrame.new(pivot.Position + diff) * (pivot - pivot.Position))
 			end
 		end)
@@ -73,7 +73,7 @@ local function continueGrowth(growth, tree, maxGrowth, time) -- resumes growth o
 			tree.grown.Value = true
 
 			local hl = Instance.new("Highlight")
-			hl.Parent = tree
+			hl.Parent = tree -- white highlight that fades ot over the course of 5 seconds
 			hl.Adornee = tree
 			hl.FillTransparency = 0
 			hl.OutlineTransparency = 0
@@ -91,21 +91,21 @@ game.Players.PlayerAdded:Connect(function(plr) -- the name speaks for itself, bu
 	---------- LOAD TREES ----------
 	
 	local TDS = game:GetService("DataStoreService"):GetDataStore("trees")
-
+	-- accesses the tree datastore
 	local trees
 	local success, result = pcall(function() -- pcall tests to make sure it worked
-		return TDS:GetAsync(plr.UserId)
+		return TDS:GetAsync(plr.UserId) -- sets the trees table yo the tree datastore that that player
 	end)
 
 	if success and result then
 		trees = result
-	else
+	else -- makes sure it worked
 		print("err:",result)
 		trees = {}
 	end
 
 	local plot
-	task.wait(1) -- I still think that it's funny how instead of loading it just makes you wait a bit, it's smart really
+	task.wait(1) -- buffers to make sure everthing is loaded and ready
 	for _, v in pairs(workspace.Plots:GetChildren()) do
 		if v.owner.Value == plr then
 			plot = v
@@ -166,7 +166,7 @@ game.Players.PlayerAdded:Connect(function(plr) -- the name speaks for itself, bu
 					local soilPos = soilAttachment.WorldPosition
 					local basePos = baseAttachment.WorldPosition
 					local diff = soilPos - basePos
-					local pivot = clone:GetPivot()
+					local pivot = clone:GetPivot() -- cframe math
 					clone:PivotTo(CFrame.new(pivot.Position + diff) * (pivot - pivot.Position))
 				end
 				
@@ -188,13 +188,13 @@ game.Players.PlayerAdded:Connect(function(plr) -- the name speaks for itself, bu
 
 	if success and result then
 		tools = result
-	elseif not result then
+	elseif not result then -- makes sure it worked
 		warn("no result :sob:")
 	elseif not success then
 		warn("err:",result)
 	end
 	
-	for i,v in ipairs(tools) do
+	for i,v in ipairs(tools) do -- iterates through the stored tools and gives it to the player
 		game.ReplicatedStorage.Seeds:FindFirstChild(v):Clone().Parent = plr.Backpack
 	end
 end)
@@ -209,12 +209,11 @@ game.Players.PlayerRemoving:Connect(function(plr) -- I really thought this would
 	local tools = {}
 	
 	for _,v in ipairs(plr.Backpack:GetChildren()) do
-		if v.Name ~= "axe" then
+		if v.Name ~= "axe" then -- makes sure not to duplicatte the axe
 			table.insert(tools, v.Name)
 		end
 	end
 	print(tools)
-	-- yeah
 	local success, err = pcall(function()
 		ToolDS:SetAsync(plr.UserId, tools)
 	end)
@@ -229,14 +228,14 @@ game.Players.PlayerRemoving:Connect(function(plr) -- I really thought this would
 		elseif not success then
 			warn("error:",err)
 		end
-		
+		-- buffer
 		task.wait(1)
 	end
 	
 	---------- SAVE TREES ----------
 	
 	local TDS = game:GetService("DataStoreService"):GetDataStore("trees")
-	local trees = {}
+	local trees = {} -- accesses datastore for trees
 
 	attemptSave(plr, trees)
 	local success, err = pcall(function() -- makes sure it sets
@@ -245,18 +244,18 @@ game.Players.PlayerRemoving:Connect(function(plr) -- I really thought this would
 	
 	if not success then
 		warn("error:",err)
-	end
+	end -- error handling
 	
-	for i=1, 5 do -- yeah also
+	for i=1, 5 do
 		local success, err = pcall(function()
 			attemptSave(plr, trees)
 			TDS:SetAsync(plr.UserId, trees)
 			print(trees)
 		end)
-		
+		-- continouous retries to make sure it saved
 		if success then break
 		elseif not success then
 			warn(err)
 		end
 	end
-end)
+end
